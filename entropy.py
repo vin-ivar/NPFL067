@@ -104,6 +104,7 @@ class Smoothing(EntropyCalc):
 	def __init__(self, text):
 		self.trigram, self.bigram, self.unigram = {}, {}, {}
 		params = np.array([random.randint(1, 100) for i in range(4)])
+		# params = np.array([0.25, 0.25, 0.25, 0.25])
 		self.params = params / sum(params)
 		self.words = text.split("\n")
 		# create sets
@@ -155,15 +156,21 @@ class Smoothing(EntropyCalc):
 		p3 = self.params[3] * super().trigramCond(k, i, j)
 		return p0 + p1 + p2 + p3
 
-	def messTrigram(self, amt=10):
-		diff = amt / 100 * (1 - self.params[3])
-		self.params[3] += diff
-		comp = 1 - self.params[3]
-		self.params[0:3] = self.params[0:3] / comp
+	def messTrigram(self, amt=10, cut=False):
+		if cut:
+			self.params[3] = self.params[3] * amt / 100
+			self.params[0:3] = self.params[0:3] / (1 - self.params[3])
+	
+		else:
+			diff = amt / 100 * (1 - self.params[3])
+			self.params[3] += diff
+			comp = 1 - self.params[3]
+			self.params[0:3] = self.params[0:3] / comp
 
 	def crossEntropy(self):
 		self.E(debug=False, alpha=0.1e-5)
 
+		print(self.params)
 		# shallow copy
 		orig = [i for i in self.params]
 
@@ -175,6 +182,17 @@ class Smoothing(EntropyCalc):
 			for i, j, k in zip(self.test, self.test[1:], self.test[2:]):
 				entropy -= math.log2(self.smoothedProb(k, i, j))
 			
+			entropy /= len(self.test)
+			print("{}\t{}".format(degree, entropy))
+
+		# cut
+		for degree in [90, 80, 70, 60, 50, 40, 30, 20, 10, 0]:
+			self.params = [o for o in orig]
+			self.messTrigram(amt=degree, cut=True)
+			entropy = 0
+			for i, j, k in zip(self.test, self.test[1:], self.test[2:]):
+				entropy -= math.log2(self.smoothedProb(k, i, j))
+
 			entropy /= len(self.test)
 			print("{}\t{}".format(degree, entropy))
 		
